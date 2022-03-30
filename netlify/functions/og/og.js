@@ -1,44 +1,53 @@
-const chromium = require("chrome-aws-lambda");
-const puppeteer = require("puppeteer-core");
+const nodeHtmlToImage = require('node-html-to-image');
 const { builder } = require("@netlify/functions");
 const fs = require("fs").promises;
 
 exports.handler = builder(async function (event, context) {
-  const { template, ...params } = Object.fromEntries(
-    event.path
-      .split("/")
-      .filter((p) => p.includes("="))
-      .map(decodeURIComponent)
-      .map((s) => s.split("=", 2))
-  );
+  const image = nodeHtmlToImage({
+    html: `<html>
+      <head>
+        <style>
+          body {
+            background: #1a67fd;
+            text-align:center;
+            display: grid;
+            justify-content: center;
+            align-content: center;
+            font-family: sans-serif;
+            width:1200px;
+            height:600px;
+          }
 
-  const browser = await puppeteer.launch({
-    args: chromium.args,
-    defaultViewport: { height: 630, width: 1200 },
-    executablePath: await chromium.executablePath,
-    headless: chromium.headless,
+          h1 {
+            color: white;
+            font-size: 80px;
+          }
+
+          p {
+            color: white;
+            font-size: 30px;
+          }
+        </style>
+      </head>
+      <body>
+        <img src="https://wpowls.co/app/uploads/2021/05/cropped-WP-Sowka-new-sygnet-kontrast512-192x192.png" /><br/>
+        <h1>{{ title }}</h1>
+        <p>New post</p>
+      </body>
+    </html>
+    `,
+    content: {
+      title: "test title",
+    },
+    puppeteerArgs: { args: ['--no-sandbox'] }
   });
-
-  let htmlPage = (
-    await fs.readFile(require.resolve(`./templates/${template}.html`))
-  ).toString();
-
-  for (const k in params) {
-    htmlPage = htmlPage.replace(`{${k}}`, params[k]);
-  }
-
-  const page = await browser.newPage();
-  await page.setContent(htmlPage);
-  await page.waitForTimeout(1000);
-
-  const buffer = await page.screenshot();
 
   return {
     statusCode: 200,
     headers: {
       "Content-Type": "image/png",
     },
-    body: buffer.toString("base64"),
+    body: image.toString("base64"),
     isBase64Encoded: true,
   };
 });
